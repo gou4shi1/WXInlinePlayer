@@ -78,16 +78,16 @@
           value=""
           style="width: 786px; height: 10px; margin: 0; padding: 5px; margin-bottom: 5px; display: block;"
         />
-        <input type="number" id="iChunkSize" value="128" />
+        <input type="number" id="iChunkSize" value="100" style="width: 50px;" />
         chunkSize&nbsp;&nbsp;&nbsp;
-        <input type="number" id="iBuffer" value="500" />
+        <input type="number" id="iBuffer" value="600" style="width: 50px;" />
         bufferingTime&nbsp;&nbsp;&nbsp;
-        <input type="number" id="iPreload" value="500" />
+        <input type="number" id="iPreload" value="800" style="width: 50px;" />
         preloadTime&nbsp;&nbsp;&nbsp;
         <div style="margin-right: 1000px; margin-bottom: 5px;"></div>
         <input type="checkbox" id="iH265" /><label for="iH265">isH265</label>
         <input type="checkbox" id="iIsLive" checked/><label for="iIsLive">isLive</label>
-        <input type="checkbox" id="iHasAudio" checked /><label for="iHasAudio">hasAudio</label>
+        <input type="checkbox" id="iHasAudio" /><label for="iHasAudio">hasAudio</label>
         <input type="checkbox" id="iHasVideo" checked /><label for="iHasVideo">hasVideo</label>
         <input type="checkbox" id="iLoop" checked /><label for="iLoop">loop</label>
         <input type="checkbox" id="iAutoPlay" checked /><label for="iAutoPlay">autoplay</label>
@@ -224,7 +224,7 @@
             });
             player.on("timeUpdate", (timestamp) => {
               $time.innerHTML = "进度：" + Math.ceil((100 * timestamp) / player.getDuration()) + "%";
-              $duration.innerHTML = "可播放时长: " + Math.ceil(player.getAvaiableDuration() / 1000) + "s";
+              $duration.innerHTML = "可播放时长: " + player.getAvaiableDuration() + "ms";
             });
             player.on("performance", ({ averageDecodeCost, averageUnitDuration }) => {
               $performance.innerHTML =
@@ -232,7 +232,8 @@
                 Math.floor(averageDecodeCost) +
                 "ms, 单元平均：" +
                 Math.floor(averageUnitDuration) +
-                "ms";
+                "ms，比例：" +
+                averageUnitDuration / averageDecodeCost;
             });
           });
         }
