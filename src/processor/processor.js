@@ -65,7 +65,7 @@ class Processor extends EventEmitter {
     this.averageUnitDuration = 0;
     this.averageDecodeCost = 0;
     this.soundHeadSliced = false;
-    this.framerate = 1000 / 24;
+    this.framerate = 10;
     this.isEnded = false;
     this.state = 'created';
     this.baseTime = 0;
@@ -76,6 +76,7 @@ class Processor extends EventEmitter {
     this.audios = [];
     this.currentTime = 0;
     this.bufferingIndex = -1;
+    this.preloadTime = preloadTime;
     this.minBufferingTime = preloadTime;
     this.bufferingTime = bufferingTime;
     this.cacheSegmentCount = cacheSegmentCount;
@@ -97,7 +98,8 @@ class Processor extends EventEmitter {
 
     if (this.hasVideo) {
       if (this.frames.length) {
-        return this.frames[this.frames.length - 1].timestamp;
+        const currentTime = this.currentTime || this.frames[0].timestamp;
+        return this.frames[this.frames.length - 1].timestamp - currentTime;
       }
     }
 
@@ -284,21 +286,44 @@ class Processor extends EventEmitter {
     } 
     ////////////////// case 3
     else if (this.hasVideo) {
+      // preload
       if (!this.isEnded && this.state == 'buffering') {
         return;
       }
-
-      if (!this.isEnded && this.frames.length < this.cacheSegmentCount / 3) {
-        this.ticker.setFps(this.framerate / 1.5);
-      }
-      const frame = this.frames.shift();
-      if (frame) {
-        this.currentTime = frame.timestamp;
-        this.emit('frame', frame);
-        if (this.sound) {
-          this.sound.setBlockedCurrTime(this.currentTime);
+      if (!this.isEnded && this.getAvaiableDuration() <= this.minBufferingTime) {
+        this.minBufferingTime = this.preloadTime;
+        if (this.state != 'buffering') {
+          this.state = 'buffering';
+          this.emit('buffering');
         }
+        return;
       }
+      this.minBufferingTime = 0;
+
+      // fps
+      const oldInterval = this.ticker.interval;
+      if (!this.isEnded && this.getAvaiableDuration() <= this.bufferingTime) {
+        this.ticker.setFps(this.framerate / 1.5);
+      } else if (this.getAvaiableDuration() >= this.bufferingTime * 2) {
+        this.ticker.setFps(this.framerate * 1.5);
+      } else {
+        this.ticker.setFps(this.framerate);
+      }
+      if (this.ticker.interval != oldInterval) {
+        console.log("[FlvPlayer] tickerInterval: %d -> %d, availableDuration: %d, bufferingTime: %d",
+          oldInterval, this.ticker.interval, this.getAvaiableDuration(), this.bufferingTime);
+      }
+
+      // play
+      if (this.state == 'playing') {
+        const frame = this.frames.shift();
+        if (frame) {
+          this.currentTime = frame.timestamp;
+          this.emit('frame', frame);
+        }
+        this.emit('preload');
+      }
+      return;
     }
 
     let diff = Number.MAX_SAFE_INTEGER;
@@ -361,15 +386,12 @@ class Processor extends EventEmitter {
         try {
           msg.data = JSON.parse(msg.data);
         } catch (e) {}
-        const info = msg.data['onMetaData'] || [];
+        const info = msg.data['onMetaData'] || {};
         if (this.ticker) {
-          for (let i = 0; i < info.length; i++) {
-            const { framerate } = info[i];
-            if (framerate) {
-              this.framerate = framerate;
-              this.ticker.setFps(framerate);
-              break;
-            }
+          const { framerate } = info;
+          if (framerate) {
+            this.framerate = framerate;
+            this.ticker.setFps(framerate);
           }
         }
 
@@ -416,7 +438,6 @@ class Processor extends EventEmitter {
           this.emit('playing');
           this.state = 'playing';        
         } 
-        this.ticker.setFps(this.framerate);
 
         const { consume, duration } = msg.data;
 
